@@ -1,0 +1,59 @@
+import logging
+import json
+from twitchio.ext import commands
+
+# Configure logging to log messages to a file
+logging.basicConfig(filename='JSbot\cheer_log.txt', level=logging.INFO, format='%(asctime)s - %(message)s')
+
+class TwitchBot(commands.Bot):
+
+    def __init__(self, username, token, channel):
+        super().__init__(token=token, prefix='!', initial_channels=[channel])
+        self.username = username
+
+    async def event_ready(self):
+        print(f'Logged in as | {self.nick}')
+        print(f'User id is | {self.user_id}')
+        print(f'Connected to channels | {self.connected_channels}')
+
+    async def event_message(self, message):
+        # Ensure the bot ignores itself
+        if message.author.name.lower() == self.nick.lower():
+            return
+
+        # Debugging: print the message tags
+        print(f'Message tags: {message.tags}')
+
+        if message.tags and 'bits' in message.tags:
+            bits = message.tags['bits']
+            display_name = message.tags.get('display-name', message.author.name)
+            log_message = f'{display_name} cheered {bits} bits: {message.content}'
+
+            # Log to text file
+            logging.info(log_message)
+            print(f'Logged cheer: {log_message}')
+
+            # Log to JSON file
+            log_entry = {
+                'username': display_name,
+                'bits': bits,
+                'message': message.content,
+                'timestamp': message.timestamp.timestamp()  # Converts to Unix timestamp
+            }
+            with open('JSbot/cheer_log.json', 'a') as f:
+                json.dump(log_entry, f)
+                f.write('\n')
+
+
+        await self.handle_commands(message)
+
+def main():
+    username = 'anthonyisntme'
+    token = 'oauth:ofp1tn6hyzad3bxi2yr0a6pnn2ietw'
+    channel = 'scarycheese'
+
+    bot = TwitchBot(username, token, channel)
+    bot.run()
+
+if __name__ == "__main__":
+    main()

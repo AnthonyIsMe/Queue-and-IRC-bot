@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bit Cheer Queue</title>
+    <style>
+      body {
+        font-family: "Poppins", sans-serif; /* Fun and modern font */
+        max-width: 1000px;
+        margin: 0 auto; /* Centers the content with automatic margins */
+        padding: 20px;
+        background-color: #404040; /* Light background for a fresh look */
+        color: #333;
+      }
+
+      h1 {
+        text-align: center;
+        color: #5d3fd3; /* Fun purple for headings */
+      }
+
+      /* Styling for queue containers */
+      #cheerQueuesContainer {
+        display: flex;
+        justify-content: center;
+        gap: 20px; /* Adds space between the containers */
+      }
+
+      .queue {
+        border: 1px solid #ccc;
+        border-radius: 100px; /* Rounded corners */
+        padding: 15px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        background-color: #6f6f6f;
+        flex: 1;
+      }
+
+      .cheerMessage,
+      .completedCheerMessage {
+        display: flex;
+        justify-content: space-between; /* Aligns content on the left and button on the right */
+        align-items: center; /* Keeps items vertically centered */
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 12px;
+        background-color: #e8e8e8; /* Light grey background */
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+      .cheerMessage:hover,
+      .completedCheerMessage:hover {
+        background-color: #d8d8d8; /* Darker grey on hover */
+      }
+
+      /* Button styling */
+      button {
+        border: none;
+        padding: 8px 16px;
+        border-radius: 5px;
+        background-color: #5d3fd3; /* Purple to match the heading */
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        /* Smooth background color transition */
+      }
+
+      button:hover {
+        background-color: #7a52e3; /* Lighter purple on hover */
+      }
+
+      .cheerMessage:first-child {
+        font-size: 1.5em;
+      }
+
+      #cheerQueue,
+      #completedQueue {
+        margin: 20px auto;
+        border: 1px solid #000000;
+        border-radius: 5px;
+        padding: 10px;
+      }
+
+      #cheerQueue {
+        max-width: 600px;
+      }
+
+      .cheerMessage {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        cursor: pointer;
+      }
+
+      .cheerMessage + .cheerMessage {
+        margin-top: 10px;
+      }
+
+      #cheerQueuesContainer {
+        display: flex;
+        justify-content: center;
+      }
+
+      .queue {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 20px 10px;
+        flex: 1;
+        max-width: calc(33% - 20px);
+      }
+
+      .cheerMessage.dragging {
+        opacity: 0.5;
+        background-color: #cfcfcf; /* Slightly different color to indicate dragging */
+      }
+
+      .cheerMessage.drag-over {
+        border: 2px dashed #5d3fd3; /* Dashed border to indicate potential drop target */
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bit Cheer Queue</h1>
+    <div id="cheerQueuesContainer">
+      <div id="cheerQueue" class="queue"></div>
+      <div id="completedQueue" class="queue"></div>
+    </div>
+
+    <script>
+      let cheerMessages = [];
+
+      document.addEventListener("DOMContentLoaded", function () {
+        loadCheerQueue();
+        setInterval(loadCheerQueue, 3000);
+
+        document
+          .getElementById("cheerQueuesContainer")
+          .addEventListener("click", function (event) {
+            const target = event.target;
+            if (target.tagName === "BUTTON") {
+              const index = parseInt(
+                target.parentElement.getAttribute("data-index")
+              );
+              if (target.textContent === "Complete") {
+                cheerMessages[index].completed = true;
+              } else if (target.textContent === "Undo") {
+                cheerMessages[index].completed = false;
+              }
+              updateJsonFile(); // Save the changes and update the display
+            }
+          });
+      });
+
+      async function loadCheerQueue() {
+        try {
+          const response = await fetch("cheer_log.json");
+          const cheerData = await response.text();
+          cheerMessages = cheerData
+            .split("\n")
+            .filter((line) => line.trim())
+            .map((line) => {
+              try {
+                return JSON.parse(line);
+              } catch (error) {
+                console.error("JSON parsing error on line:", line, error);
+                return null;
+              }
+            })
+            .filter((item) => item !== null);
+          displayCheerQueue();
+        } catch (error) {
+          console.error("Error loading cheer queue:", error);
+        }
+      }
+
+      function displayCheerQueue() {
+        const cheerQueueDiv = document.getElementById("cheerQueue");
+        const completedQueueDiv = document.getElementById("completedQueue");
+
+        cheerQueueDiv.innerHTML = "";
+        completedQueueDiv.innerHTML = "";
+
+        cheerMessages.forEach((message, index) => {
+          const messageDiv = message.completed
+            ? createCompletedCheerMessage(message, index)
+            : createCheerMessage(
+                message,
+                index,
+                cheerQueueDiv.children.length === 0
+              ); // Pass if it's the first item
+          if (message.completed) {
+            completedQueueDiv.insertBefore(
+              messageDiv,
+              completedQueueDiv.firstChild
+            ); // prepend to the top
+          } else {
+            cheerQueueDiv.appendChild(messageDiv); // append as normal
+          }
+        });
+      }
+
+      function createCheerMessage(message, index, isFirst) {
+        const cheerDiv = document.createElement("div");
+        cheerDiv.className = "cheerMessage";
+        cheerDiv.draggable = true;
+        cheerDiv.textContent = `${message.username} cheered ${message.bits} bits: ${message.message}`;
+        cheerDiv.setAttribute("data-index", index);
+
+        if (isFirst) {
+          const completeButton = document.createElement("button");
+          completeButton.textContent = "Complete";
+          completeButton.addEventListener("click", () => {
+            message.completed = true;
+            updateJsonFile(); // Save the changes
+          });
+
+          cheerDiv.appendChild(completeButton);
+        }
+
+        // Attach drag event listeners
+        cheerDiv.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/plain", index);
+          cheerDiv.classList.add("dragging");
+        });
+
+        cheerDiv.addEventListener("dragend", (event) => {
+          cheerDiv.classList.remove("dragging");
+        });
+
+        cheerDiv.addEventListener("dragover", (event) => {
+          event.preventDefault(); // Allow the drop
+          cheerDiv.classList.add("drag-over");
+        });
+
+        cheerDiv.addEventListener("dragleave", (event) => {
+          cheerDiv.classList.remove("drag-over");
+        });
+
+        cheerDiv.addEventListener("drop", (event) => {
+          event.preventDefault();
+          cheerDiv.classList.remove("drag-over");
+          const target = event.target.closest(".cheerMessage"); // Ensure we're dropping onto a cheer message
+          if (target) {
+            const targetIndex = parseInt(target.getAttribute("data-index"), 10);
+            const draggedIndex = parseInt(
+              event.dataTransfer.getData("text/plain"),
+              10
+            );
+            if (targetIndex !== draggedIndex) {
+              const draggedMessage = cheerMessages.splice(draggedIndex, 1)[0];
+              cheerMessages.splice(targetIndex, 0, draggedMessage);
+              updateJsonFile(); // Update JSON and re-display the cheer messages
+            }
+          }
+        });
+
+        return cheerDiv;
+      }
+
+      function createCompletedCheerMessage(message, index) {
+        const completedCheerDiv = document.createElement("div");
+        completedCheerDiv.className = "completedCheerMessage";
+        completedCheerDiv.textContent = `${message.username} cheered ${message.bits} bits: ${message.message}`;
+        completedCheerDiv.setAttribute("data-index", index);
+
+        const undoButton = document.createElement("button");
+        undoButton.textContent = "Undo";
+        undoButton.addEventListener("click", () => {
+          message.completed = false;
+          updateJsonFile();
+        });
+
+        completedCheerDiv.appendChild(undoButton);
+        return completedCheerDiv;
+      }
+
+      async function updateJsonFile() {
+        const jsonData = cheerMessages
+          .map((message) => JSON.stringify(message))
+          .join("\n");
+        try {
+          const response = await fetch("http://localhost:3000/update_json", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: jsonData,
+          });
+          if (!response.ok) {
+            throw new Error("Failed to save the updated cheer log.");
+          }
+          displayCheerQueue(); // Update the DOM if save was successful
+        } catch (error) {
+          console.error("Error updating JSON file:", error);
+        }
+      }
+    </script>
+  </body>
+</html>
