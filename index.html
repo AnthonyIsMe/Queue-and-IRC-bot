@@ -279,7 +279,7 @@
           .map((message) => JSON.stringify(message))
           .join("\n");
         try {
-          const response = await fetch("https://ir-cbackend.vercel.app/cheer_log.json", {
+          const response = await fetch("https://your-app-name.vercel.app/update_json", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
